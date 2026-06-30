@@ -25,6 +25,7 @@ global PROJ "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-proje
 // cap ssc install synth_runner   // Galiani–Quistorff: placebo/permutation inference + p-values
 // cap ssc install allsynth     // Wiltshire: bias-corrected ("augmented") SCM + event-study plots
 // cap ssc install egenmore
+// cap ssc install ritest
 // global sscdate "2025-11-29"
 // global sscmirror "raw.githubusercontent.com/labordynamicsinstitute/ssc-mirror/$sscdate/"
 // local ssc_packages "csdid drdid honestdid regsave grc1leg2"
@@ -37,3 +38,4 @@ global PROJ "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-proje
 do "$PROJ/scripts/stata/01_loadclean.do"
 do "$PROJ/scripts/stata/02_descriptive.do"
 do "$PROJ/scripts/stata/03_main.do"
+do "$PROJ/scripts/stata/04_hours.do"

@@ -17,6 +17,11 @@ cap log close _all
 global PROJ "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-project"
 use "$PROJ/data/clean/cleaned_dataset.dta", clear
 
+
+*========
+*Counts for Paper
+*=========
+tabulate statefip year if mother_elig == 1
 *========================================================================
 *Table 1: Summary statistics -- mean (SD) by group 2018-2023, weighted)
 *Panel A is dependent variables
@@ -28,22 +33,22 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 		* Panel A: dependent / explanatory (outcome) variables
 		local Avars lf_indicator lhours
 		local Albls `"  "Labor force participation" "Log hours worked"  "'
+		local Atype  pct          raw //assigns each avar a type
 
 		* Panel B: mother-level covariates
 		local Bvars age single_mother white black aian asian otherr mixedr hispanic is_citizen in_school diploma associate bachelor high_degree rural nchild hhincome_k
 		local Blbls `" "Age" "Single mother" "White, non-Hispanic" "Black, non-Hispanic" "AIAN, non-Hispanic" "Asian/PI, non-Hispanic" "Other race, non-Hispanic" "Two or more races" "Hispanic" "U.S. citizen" "In school" "HS diploma" "Associate degree" "Bachelor's degree" "Graduate degree"  "Nonmetro" "Number of own children" "Household income (thousands)" "'
+		local Btype raw pct pct pct pct pct pct pct pct pct pct pct pct pct pct pct raw usd // assigns each bvar a type
 			local nA : word count `Avars'
 			local nB : word count `Bvars'
-			matrix M = J(`=`nA'+`nB'', 4, .) //Counts variables in each panel and builds a matrix with that many rows and 4 columns filled with .
-	
-
+			matrix M = J(`=`nA'+`nB'', 4, .) //Counts variables in each panel and builds a matrix with that many rows and 4 columns filled with "."
 		* Fill matrix M (cols: 1 T_mean  2 T_sd  3 C_mean  4 C_sd)
-		local r = 0                       // matrix row counter (runs across both panels)
+		local r = 0                       // matrix row counter (runs across both panels), starts at 0
 		foreach v of local Avars {        // Panel A: outcome variables
-			local ++r
+			local ++r						//next row
 			quietly summarize `v' [aw=perwt] if Treat == 1   // VT (treated)
-			matrix M[`r',1] = r(mean)
-			matrix M[`r',2] = r(sd)
+			matrix M[`r',1] = r(mean) //stores mean
+			matrix M[`r',2] = r(sd) //stores SD
 			quietly summarize `v' [aw=perwt] if Treat == 0   // control states
 			matrix M[`r',3] = r(mean)
 			matrix M[`r',4] = r(sd)
@@ -69,6 +74,17 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 		matlist M, format(%9.3f) title("Table 1: Mean (SD) by group, pre-period mothers, sample-weighted")
 
 *---------- Write LaTeX ------------ *
+*------------------------------------------------------------------------
+* Cell formatter
+*------------------------------------------------------------------------
+cap program drop fmtcell //resets the program
+program define fmtcell, rclass
+    args v typ
+    if "`typ'" == "pct"      return local s = (string(100*`v', "%9.1f")) + "\%"
+    else if "`typ'" == "usd" return local s = "\$" + (string(`v', "%9.0fc"))
+    else                     return local s = (string(`v', "%9.2f"))
+end
+*-----------------------------------------------------------------------
 		cap mkdir "$PROJ/scripts/stata/_outputs"
 		tempname fh //creates a name to more easily reference 
 		file open `fh' using "$PROJ/scripts/stata/_outputs/tab_sumstats.tex", write replace text
@@ -84,22 +100,32 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 		file write `fh' "\multicolumn{3}{l}{\textit{Dependent / explanatory variables}} \\" _n
 		forvalues r = 1/`nA' {
 			local lab : word `r' of `Albls'
-			local mT = string(M[`r',1], "%9.2f")
-			local sT = string(M[`r',2], "%9.2f")
-			local mC = string(M[`r',3], "%9.2f")
-			local sC = string(M[`r',4], "%9.2f")
-			file write `fh' "`lab' & `mT' (`sT') & `mC' (`sC') \\" _n
+			local typ : word `r' of `Atype'
+			fmtcell M[`r',1] "`typ'" //formats cell according to type
+			local mT `r(s)' // treatment mean
+			fmtcell M[`r',2] "`typ'"
+			local sT `r(s)' // treatment SD
+			fmtcell M[`r',3] "`typ'"
+			local mC `r(s)' // control mean
+			fmtcell M[`r',4] "`typ'"
+			local sC `r(s)' // control SD
+			file write `fh' "`lab' & `mT' (`sT') & `mC' (`sC') \\" _n //in row writes label and means + SDs 
 		}
 		file write `fh' "\addlinespace" _n
 		* Panel B *
 		file write `fh' "\multicolumn{3}{l}{\textit{Covariates}} \\" _n
 		forvalues r = 1/`nB' {
 			local lab : word `r' of `Blbls'
+			local typ : word `r' of `Btype'
 			local row = `nA' + `r'                 // Panel B occupies matrix rows nA+1 .. nA+nB
-			local mT = string(M[`row',1], "%9.2f")
-			local sT = string(M[`row',2], "%9.2f")
-			local mC = string(M[`row',3], "%9.2f")
-			local sC = string(M[`row',4], "%9.2f")
+			fmtcell M[`row',1] "`typ'"
+			local mT `r(s)'
+			fmtcell M[`row',2] "`typ'"
+			local sT `r(s)'
+			fmtcell M[`row',3] "`typ'"
+			local mC `r(s)'
+			fmtcell M[`row',4] "`typ'"
+			local sC `r(s)'
 			file write `fh' "`lab' & `mT' (`sT') & `mC' (`sC') \\" _n
 		}
 		file write `fh' "\addlinespace" _n
@@ -140,9 +166,9 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 		local base = 3*`wcol' //allows us to offset to weight columns 
 		preserve
 			keep if mother_elig == 1 & year == `y0' 
-			local r = 0 //starts at row 0
+			local r = 0 
 	foreach v of local covs {
-		local ++r //next row 
+		local ++r 
 		quietly summarize `v' `wt' if Treat == 0
 		local m0 = r(mean)
 		local s0 = r(sd)
@@ -275,7 +301,7 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 *Figure 1: Two-Way Pre-Trends Figure: LFP, Vermont vs. control states
 *============================================================================
 	preserve
-		collapse (mean) lf_indicator [aw=perwt] if mother_elig == 1, by(Treat year)
+		collapse (mean) lf_indicator [pw=perwt] if mother_elig == 1, by(Treat year)
 		rename lf_indicator LFP
 		gen VT = cond(Treat == 1, "Vermont", "Control States")
 		quietly summarize year
@@ -304,7 +330,7 @@ use "$PROJ/data/clean/cleaned_dataset.dta", clear
 *Figure 2: Two-Way Pre-Trends Figure: Hours Worked, Vermont vs. control states
 *============================================================================
 	preserve
-		collapse (mean) lhours [aw=perwt] if mother_elig == 1, by(Treat year)
+		collapse (mean) lhours [pw=perwt] if mother_elig == 1, by(Treat year)
 		rename lhours hrs_work
 		gen VT = cond(Treat == 1, "Vermont", "Control States")
 		quietly summarize year

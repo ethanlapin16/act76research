@@ -1,9 +1,9 @@
 /*------------------------------------------------------------
-File:       03_main.do
-Purpose:    Main Regression
+File:       04_lhours.do
+Purpose:    Same Regressions on Hours
 Inputs:     data/clean/cleaned_dataset.dta
 Outputs:    Regression results tables
-Run order:  After 02_descriptive.do
+Run order:  After 03_main.do
 ------------------------------------------------------------*/
 version 19                        // pin Stata semantics
 clear all
@@ -28,59 +28,57 @@ local covs_sm  age2 black aian asian otherr mixedr hispanic ///
 
 *===========Triple Diff=========*
 gen DDD_treat = (statefip == 50) & (year == 2024) & (mother_elig == 1)
-reghdfe lf_indicator DDD_treat [pw=perwt], absorb (statefip#mother_elig statefip#year year#mother_elig)
+reghdfe lhours DDD_treat [pw=perwt], absorb (statefip#mother_elig statefip#year year#mother_elig)
 			   
 *=== Spec 1: all eligible mothers ===
 keep if mother_elig == 1
-preserve
-keep if inlist(year, 2022, 2023, 2024)        // 2022 = pre, 2023/24 = post
-gen byte period = year >= 2023                  // 0 = pre, 1 = pooled post
-drdid lf_indicator `covs_main' [iw=perwt], time(period) tr(Treat) dripw
-restore
-
-drdid lf_indicator `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
-
+// preserve
+// keep if inlist(year, 2022, 2023, 2024)        // 2022 = pre, 2023/24 = post
+// gen byte period = year >= 2023                  // 0 = pre, 1 = pooled post
+// drdid lhours `covs_main' [iw=perwt], robust time(period) tr(Treat) dripw
+// restore
+drdid lhours `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
 preserve
 keep if inlist(year, 2023, 2024)
 ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
-	drdid lf_indicator `covs_main' [iw=perwt], time(year) tr(Treat) dripw
+	drdid lhours `covs_main' [iw=perwt], time(year) tr(Treat) dripw
 restore
 
 * === Spec 2: only expansion group ===
 preserve
 keep if expansion_group == 1
-drdid lf_indicator `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
-// keep if inlist(year, 2023, 2024)
-// ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
-// 	drdid lf_indicator `covs_main' [iw=perwt], time(year) tr(Treat) dripw
+drdid lhours `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
+keep if inlist(year, 2023, 2024)
+ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
+	drdid lhours `covs_main' [iw=perwt], time(year) tr(Treat) dripw
 restore
 
 *=== Spec 3: only single mothers ===
 preserve
 keep if single_mother == 1
-drdid lf_indicator `covs_sm' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
-// keep if inlist(year, 2023, 2024)
-// ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
-// 	drdid lf_indicator `covs_sm' [iw=perwt], time(year) tr(Treat) dripw
+drdid lhours `covs_sm' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
+keep if inlist(year, 2023, 2024)
+ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
+	drdid lhours `covs_sm' [iw=perwt], time(year) tr(Treat) dripw
 restore
 
 *====Spec 4: young mothers ===
 preserve
 keep if inrange(age, 18, 28)
-drdid lf_indicator `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
-// keep if inlist(year, 2023, 2024)
-// ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
-// 	drdid lf_indicator `covs_main' [iw=perwt], time(year) tr(Treat) dripw
+drdid lhours `covs_main' if inlist(year, 2023, 2024) [iw=perwt], time(year) tr(Treat) dripw
+keep if inlist(year, 2023, 2024)
+ritest Treat (att: el(e(b),1,1)), reps(100) cluster(statefip) force: /// *calls the first element of the outputs of drdid
+	drdid lhours `covs_main' [iw=perwt], time(year) tr(Treat) dripw
 restore 
 
 * --- Synthetic DiD (Arkhangelsky et al. 2021) ---
 preserve
-	collapse (mean) lf_indicator `covs_main' [pw=perwt], by(statefip year)
+	collapse (mean) lhours `covs_main' [pw=perwt], by(statefip year)
 	* Restrict to the chosen pre/post window (>=2 pre-periods needed for time weights):
 	* keep if inrange(year, 2019, 2024)
 	gen byte treat_2 = (statefip == 50 & year == 2024) 
 	xtset statefip year
-	sdid lf_indicator statefip year treat_2, vce(placebo) reps(100) ///
+	sdid lhours statefip year treat_2, vce(placebo) reps(100) ///
 		covariates(`covs_main', projected)
 restore
 
@@ -88,13 +86,15 @@ restore
  *=== Synthetic control (aggregate state-year panel) ===
 preserve
 xtset, clear
-collapse (mean) `covs_main' lf_indicator [pw=perwt], by(statefip year)
+collapse (mean) `covs_main' lhours [pw=perwt], by(statefip year)
 egen pseudotime = group(year)
 xtset statefip pseudotime
 tsfill, full
+* synth's keep() re-parses the filename and breaks on spaces in $PROJ;
+* cd into the output dir so keep() sees a space-free relative filename.
 local here "`c(pwd)'"
 qui cd "$PROJ/scripts/stata/_outputs"
-synth lf_indicator lf_indicator(1) lf_indicator(2) lf_indicator(3) lf_indicator(4) lf_indicator(5) ///
+synth lhours lhours(1) lhours(2) lhours(3) lhours(4) lhours(5) ///
     `covs_main', trunit(50) trperiod(6) xperiod(1(1)5) msperiod(1(1)5) resultsperiod(1(1)6) ///
     keep(synth_vt.dta, replace)
 qui cd "`here'"
