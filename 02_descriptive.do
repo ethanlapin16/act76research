@@ -14,14 +14,13 @@ cap log close
 cap log close _all
 //-----------------------------------------------------------
 *Load data
-do "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-project/scripts/stata/_config.do"
 use "$PROJ/data/clean/cleaned_dataset.dta", clear
 
 
-*========
+*=========
 *Counts for Paper
 *=========
-tabulate statefip year if mother_elig == 1
+tab statefip year if mother_elig == 1
 *========================================================================
 *Table 1: Summary statistics -- mean (SD) by group 2018-2023, weighted)
 *Panel A is dependent variables
@@ -46,19 +45,19 @@ tabulate statefip year if mother_elig == 1
 		local r = 0                       // matrix row counter (runs across both panels), starts at 0
 		foreach v of local Avars {        // Panel A: outcome variables
 			local ++r						//next row
-			quietly summarize `v' [aw=perwt] if Treat == 1   // VT (treated)
+			qui summarize `v' [aw=perwt] if Treat == 1   // VT (treated)
 			matrix M[`r',1] = r(mean) //stores mean
 			matrix M[`r',2] = r(sd) //stores SD
-			quietly summarize `v' [aw=perwt] if Treat == 0   // control states
+			qui summarize `v' [aw=perwt] if Treat == 0   // control states
 			matrix M[`r',3] = r(mean)
 			matrix M[`r',4] = r(sd)
 		}
 		foreach v of local Bvars {        // Panel B: covariates 
 			local ++r
-			quietly summarize `v' [aw=perwt] if Treat == 1
+			qui summarize `v' [aw=perwt] if Treat == 1
 			matrix M[`r',1] = r(mean)
 			matrix M[`r',2] = r(sd)
-			quietly summarize `v' [aw=perwt] if Treat == 0
+			qui summarize `v' [aw=perwt] if Treat == 0
 			matrix M[`r',3] = r(mean)
 			matrix M[`r',4] = r(sd)
 		}
@@ -145,10 +144,9 @@ end
 * Rule of thumb: |norm./std. diff| > 0.25 = imbalance
 *========================================================================
 
-	quietly summarize year, meanonly //lets us pull the minimum year, meanonly makes it faster
+	squi summarize year, meanonly //lets us pull the minimum year, meanonly makes it faster
 	local y0 = r(min)      // first pre-year (baseline levels + start of change)
 	local y1 = 2023      // last  pre-year (end of change)
-
 	* mother-level covariates (individual versions; pct_* state aggregates excluded)
 	local covs age single_mother white black aian asian otherr mixedr hispanic ///
 	           is_citizen in_school diploma associate bachelor high_degree rural ///
@@ -169,10 +167,10 @@ end
 			local r = 0 
 	foreach v of local covs {
 		local ++r 
-		quietly summarize `v' `wt' if Treat == 0
+		qui summarize `v' `wt' if Treat == 0
 		local m0 = r(mean)
 		local s0 = r(sd)
-		quietly summarize `v' `wt' if Treat == 1 
+		qui summarize `v' `wt' if Treat == 1 
 		local m1 = r(mean)
 		local s1 = r(sd)
 		matrix A[`r',`base'+1] = `m0'
@@ -199,10 +197,10 @@ end
 			foreach v of local covs {
 				local ++r
 				gen double d_`v' = `v'`y1' - `v'`y0' //for all the vars we have made "age2018" and "age2023", this subtracts them
-				quietly summarize d_`v' if Treat == 0       // across the control states
+				qui summarize d_`v' if Treat == 0       // across the control states
 				local m0 = r(mean)
 				local s0 = r(sd)
-				quietly summarize d_`v' if Treat == 1       // VT specifically
+				qui summarize d_`v' if Treat == 1       // VT specifically
 				local m1 = r(mean)
 				matrix B[`r', `base'+1] = `m0'
 				matrix B[`r', `base'+2] = `m1'
@@ -262,30 +260,30 @@ end
 
 *=================================================================================
 *Table 3: Baseline (pre-period) dependent variables, 2023
-*  CAVEAT: lhours / wkswork / learnings / fulltime are conditional on working or
+*  CAVEAT: lhours / wkswork / lincome/ fulltime are conditional on working or
 *          earning (>0), so they describe the selected sample of workers/earners.
 *=================================================================================
-	local outcomes employed lf_indicator fulltime lhours wkswork learnings
+	local outcomes employed lf_indicator fulltime lhours wkswork lincome
 	local no : word count `outcomes' //counts the variables in the list
 	matrix O = J(`no', 6, .) 
 	local r = 0 
 	foreach v of local outcomes {
 		local ++r 
 		* --- unweighted --- * 
-		quietly summarize `v' if Treat == 0 & year == 2023 & mother_elig == 1 
+		qui summarize `v' if Treat == 0 & year == 2023 & mother_elig == 1 
 		local m0 = r(mean)
 		local s0 = r(sd)
-		quietly summarize `v' if Treat == 1 & year == 2023 & mother_elig == 1
+		qui summarize `v' if Treat == 1 & year == 2023 & mother_elig == 1
 		local m1 = r(mean)
 		local s1 = r(sd)
 		matrix O[`r',1] = `m0' //whichever row we are on, begins populating 
 		matrix O[`r',2] = `m1'
 		matrix O[`r',3] = (`m1'-`m0') / sqrt((`s1'^2 + `s0'^2)/2) 
 		* --- perwt-weighted ---
-		quietly summarize `v' [aw=perwt] if Treat == 0 & year == 2023 & mother_elig == 1
+		qui summarize `v' [aw=perwt] if Treat == 0 & year == 2023 & mother_elig == 1
 		local m0 = r(mean)
 		local s0 = r(sd)
-		quietly summarize `v' [aw=perwt] if Treat == 1 & year == 2023 & mother_elig == 1
+		qui summarize `v' [aw=perwt] if Treat == 1 & year == 2023 & mother_elig == 1
 		local m1 = r(mean)
 		local s1 = r(sd)
 		matrix O[`r',4] = `m0'
@@ -304,7 +302,7 @@ end
 		collapse (mean) lf_indicator [pw=perwt] if mother_elig == 1, by(Treat year)
 		rename lf_indicator LFP
 		gen VT = cond(Treat == 1, "Vermont", "Control States")
-		quietly summarize year
+		qui summarize year
 		local ymin = r(min)
 		local ymax = r(max)
 
@@ -333,7 +331,7 @@ end
 		collapse (mean) lhours [pw=perwt] if mother_elig == 1, by(Treat year)
 		rename lhours hrs_work
 		gen VT = cond(Treat == 1, "Vermont", "Control States")
-		quietly summarize year
+		qui summarize year
 		local ymin = r(min)
 		local ymax = r(max)
 
@@ -356,4 +354,3 @@ end
 		di as txt "Wrote figures/figure2_stata.pdf"
 	restore
 	
-	//build tables for other Y vars
