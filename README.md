@@ -1,1 +1,2 @@
-# act76research
+# Ethan Lapin: Summer 2026 Vermont Act 76 Research
+I used a very specific file structure on my desktop. I've attempted to recreate it without a GitHub push, also deploying every single figure I've made and all my logs. A direct download should work. Note that the data isn't attached, but the extract.md markdown file has a list of all the variables I pulled from the IPUMS ACS site. Some I didn't/am yet to use, so if storage or computer performance is an issue, attempt to assemble a smaller extract based on the contents of 01. 
