@@ -29,18 +29,12 @@ global PROJ "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-proje
 // cap ssc install drdid
 // cap ssc install regsave 
 // cap ssc install honestdid
-// global sscdate "2025-11-29"
-// global sscmirror "raw.githubusercontent.com/labordynamicsinstitute/ssc-mirror/$sscdate/"
-// local ssc_packages "csdid drdid honestdid regsave grc1leg2"
-// net install drdid, from(https://${sscmirror}fmwww.bc.edu/repec/bocode/d) replace
-// net install csdid, from(https://${sscmirror}fmwww.bc.edu/repec/bocode/c) replace
-// net install honestdid, from(https://${sscmirror}fmwww.bc.edu/repec/bocode/h) replace
-// net install regsave, from(https://${sscmirror}fmwww.bc.edu/repec/bocode/r) replace
-// net install grc1leg2, from(https://${sscmirror}fmwww.bc.edu/repec/bocode/g) replace
+// cap ssc install csdid
+// cap ssc install grc1leg2
 
+*run all do files* *this will take a substantial amount of time*
 do "$PROJ/scripts/stata/01_loadclean.do"
 do "$PROJ/scripts/stata/02_descriptive.do"
 do "$PROJ/scripts/stata/03_main.do"
-do "$PROJ/scripts/stata/04_hours.do"
-do "$PROJ/scripts/stata/05_act45.do"
-do "$PROJ/scripts/stata/06_pooledpost.do"
+do "$PROJ/scripts/stata/04_act45pooled.do"
+do "$PROJ/scripts/stata/05_fathers.do"

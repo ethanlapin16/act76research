@@ -30,13 +30,13 @@ tab statefip year if mother_elig == 1
 		keep if inrange(year, 2018,2023) & mother_elig == 1     // analysis sample: mothers, pre-period
 		
 		* Panel A: dependent / explanatory (outcome) variables
-		local Avars lf_indicator lhours
-		local Albls `"  "Labor force participation" "Log hours worked"  "'
+		local Avars lf_indicator uhrswork
+		local Albls `"  "Labor force participation" "Usual weekly hours worked"  "'
 		local Atype  pct          raw //assigns each avar a type
 
 		* Panel B: mother-level covariates
 		local Bvars age single_mother white black aian asian otherr mixedr hispanic is_citizen in_school diploma associate bachelor high_degree rural nchild hhincome_k
-		local Blbls `" "Age" "Single mother" "White, non-Hispanic" "Black, non-Hispanic" "AIAN, non-Hispanic" "Asian/PI, non-Hispanic" "Other race, non-Hispanic" "Two or more races" "Hispanic" "U.S. citizen" "In school" "HS diploma" "Associate degree" "Bachelor's degree" "Graduate degree"  "Nonmetro" "Number of own children" "Household income (thousands)" "'
+		local Blbls `" "Age" "Single mother" "White, non-Hispanic" "Black, non-Hispanic" "AIAN, non-Hispanic" "Asian/PI, non-Hispanic" "Other race, non-Hispanic" "Two or more races" "Hispanic" "U.S. citizen" "In school" "HS diploma" "Associate degree" "Bachelor's degree" "Graduate degree"  "Nonmetro" "Number of own children" "Household income (in thousands)" "'
 		local Btype raw pct pct pct pct pct pct pct pct pct pct pct pct pct pct pct raw usd // assigns each bvar a type
 			local nA : word count `Avars'
 			local nB : word count `Bvars'
@@ -144,7 +144,7 @@ end
 * Rule of thumb: |norm./std. diff| > 0.25 = imbalance
 *========================================================================
 
-	squi summarize year, meanonly //lets us pull the minimum year, meanonly makes it faster
+	qui summarize year, meanonly //lets us pull the minimum year, meanonly makes it faster
 	local y0 = r(min)      // first pre-year (baseline levels + start of change)
 	local y1 = 2023      // last  pre-year (end of change)
 	* mother-level covariates (individual versions; pct_* state aggregates excluded)
@@ -260,10 +260,10 @@ end
 
 *=================================================================================
 *Table 3: Baseline (pre-period) dependent variables, 2023
-*  CAVEAT: lhours / wkswork / lincome/ fulltime are conditional on working or
+*  CAVEAT: uhrswork / wkswork / lincome/ fulltime are conditional on working or
 *          earning (>0), so they describe the selected sample of workers/earners.
 *=================================================================================
-	local outcomes employed lf_indicator fulltime lhours wkswork lincome
+	local outcomes employed lf_indicator fulltime uhrswork wkswork lincome
 	local no : word count `outcomes' //counts the variables in the list
 	matrix O = J(`no', 6, .) 
 	local r = 0 
@@ -328,21 +328,20 @@ end
 *Figure 2: Two-Way Pre-Trends Figure: Hours Worked, Vermont vs. control states
 *============================================================================
 	preserve
-		collapse (mean) lhours [pw=perwt] if mother_elig == 1, by(Treat year)
-		rename lhours hrs_work
+		collapse (mean) uhrswork [pw=perwt] if mother_elig == 1, by(Treat year)
 		gen VT = cond(Treat == 1, "Vermont", "Control States")
 		qui summarize year
 		local ymin = r(min)
 		local ymax = r(max)
 
 		twoway ///
-			  (line    hrs_work year if Treat == 1, lcolor(red)  lpattern(solid) lwidth(medium)) ///
-			  (line    hrs_work year if Treat == 0, lcolor(blue) lpattern(solid) lwidth(medium)) ///
-			  (scatter hrs_work year if Treat == 1, msymbol(O)  mcolor(red)) ///
-			  (scatter hrs_work year if Treat == 0, msymbol(Oh) mcolor(blue)) , ///
+			  (line    uhrswork year if Treat == 1, lcolor(red)  lpattern(solid) lwidth(medium)) ///
+			  (line    uhrswork year if Treat == 0, lcolor(blue) lpattern(solid) lwidth(medium)) ///
+			  (scatter uhrswork year if Treat == 1, msymbol(O)  mcolor(red)) ///
+			  (scatter uhrswork year if Treat == 0, msymbol(Oh) mcolor(blue)) , ///
 			  legend(order(1 "Vermont" 2 "Control States") pos(6) ring(2) cols(2)) ///
 			  xtitle("") ///
-			  ytitle("Average Weekly Log Hours Worked", orientation(horizontal)) ///
+			  ytitle("Average Weekly Hours Worked", orientation(horizontal)) ///
 			  ysize(5) xsize(10) ///
 			  xline(2023.5, lpattern(dash) lcolor(gs8)) ///
 			  xlabel(`ymin' (1)`ymax', nogrid) ///

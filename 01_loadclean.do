@@ -18,19 +18,22 @@ cap log close _all
 
 global PROJ "/Users/ethanlapin/Desktop/Summer Research 26/Data and Code/my-project"
 cap mkdir "$PROJ/scripts/stata/_outputs"
-
 * Loading Data *
 cd "$PROJ/data/raw"
 do "$PROJ/scripts/stata/usa_00005.do"
+compress
 
+// log using "$PROJ/scripts/stata/logs/01_log.log", text replace
 *Drop Non-comparison states and years
 
 //drop if inlist(year, 2018, 2019, 2021, 2022) //optional command to drop years as needed
 // keep if inlist(statefip, 50, 46, 56, 44, 20, 30, 19, 08) // Keeps only VT and controls *50 = vermont, fully define
-// drop if inlist(statefip, 02, 15, 23, 24, 25, 33, 35, 51, 36, 06) //drop Maine, Maryland, Mass, NH, NM, Virginia, NY, California, AK, HI  
+drop if inlist(statefip, 02, 15, 23, 24, 25, 33, 35, 51, 36, 06, 34, 09, 44, 27, 08, 11) //drop Maine, Maryland, Mass, NH, NM, Virginia, NY, California, AK, HI, NJ, CT, RI, MN, CO, DC
 
-*6.25 control set*
-keep if inlist(statefip, 50, 30, 55, 27, 42, 46, 19, 56, 41, 09, 44) // keeps VT, MT, WI, MN, PA, SD, IA, WY, OR, CT & RI (for regional effects)
+// *6.25 control set*
+// keep if inlist(statefip, 50, 30, 55, 27, 42, 46, 19, 56, 41, 09, 44) // keeps VT, MT, WI, MN, PA, SD, IA, WY, OR, CT & RI (for regional effects)
+// *7.14 controls*
+// keep if inlist(statefip, 50, 49, 30, 38, 56, 08)
 
 *Define Vermont Treatment Group*
 gen byte Treat = (statefip == 50) // generates treatment group for Vermont
@@ -57,8 +60,8 @@ gen double pct_fpl = 100 * ftotinc / fpl
 gen byte elig_subsidy = (pct_fpl <= 575) if !missing(pct_fpl) & poverty > 0 // restrict to poverty universe
 gen byte mother_elig = (mother_cqual == 1 & elig_subsidy == 1)
 gen byte father_elig = (father_cqual == 1 & elig_subsidy == 1)
-gen byte expansion_group = inrange(pct_fpl, 350, 575) & mother_cqual == 1 & !missing(pct_fpl) & poverty > 0 //defines the expansion group for Act 76
-gen byte expansion_group_f = inrange(pct_fpl, 350, 575) & father_cqual == 1 & !missing(pct_fpl) & poverty > 0 // expansion group for fathers 
+gen byte expansion_group = inrange(pct_fpl, 351, 575) & mother_cqual == 1 & !missing(pct_fpl) & poverty > 0 //defines the expansion group for Act 76
+gen byte expansion_group_f = inrange(pct_fpl, 351, 575) & father_cqual == 1 & !missing(pct_fpl) & poverty > 0 // expansion group for fathers 
 label var pct_fpl "Family income as % of FPL"
 label var elig_subsidy "Family income as % of FPL ≤ 575%"
 label var mother_elig "Mother who is eligible for subsidy"
@@ -76,8 +79,7 @@ gen byte asian = inrange(race, 4, 6) & hispan == 0
 gen byte otherr = (race == 7 & hispan == 0)
 gen byte mixedr = (race >= 8 & hispan == 0)
 gen byte hispanic = inrange(hispan, 1, 4)
-gen byte in_poverty = (poverty > 0 & poverty < 100)
-gen byte is_woman = (sex == 2)
+gen byte female = (sex == 2)
 gen byte is_citizen = inlist(citizen, 0, 1, 2)
 gen byte married = (marst == 1) // if it's 2, spouse is absent
 gen byte in_school = (school == 2)
@@ -86,62 +88,43 @@ gen byte associate = (educd == 081)
 gen byte bachelor = (educd == 101)
 gen byte high_degree = inlist(educd, 114, 115, 116)
 gen byte rural = (metro == 1)
-gen byte under_6 = (age < 6)
-gen byte prime_age = inrange(age, 25, 54)                          // prime working age
 gen byte single_mother = (mother == 1 & inlist(marst, 2, 3, 4, 5, 6)) // mother, not currently married or with partner (sep/div/wid/never)
 gen byte single_father = (father == 1 & inlist(marst, 2, 3, 4, 5, 6))
-
-*--- Weighted state-year shares over TOTAL population ---*
-bysort statefip year: egen double pop = total(perwt) //generates a population estimate from weights 
-foreach v in white black aian asian otherr mixedr hispanic in_poverty is_woman is_citizen in_school rural under_6 prime_age {
-    bysort statefip year: egen double _num = total(perwt * `v')
-    gen pct_`v' = 100 * _num / pop
-    drop _num
-}
-rename pct_in_poverty pct_poverty
-rename pct_is_woman pct_female
-
-*--- Weighted state-year shares over restricted population (adults 25+) ---*
-gen byte adult25 = (age >= 25)
-bysort statefip year: egen double pop_adult = total(perwt * adult25)
-foreach v in diploma associate bachelor high_degree married single_mother single_father{
-    bysort statefip year: egen double _num = total(perwt * `v' * adult25)
-    gen pct_`v' = 100 * _num / pop_adult
-    drop _num
-}
+gen int age2 = age^2
+bysort statefip year: egen double pop = total(perwt) //generates a population estimate from weights
 
 * Age^2 For Covariates*
-gen age2 = age^2
 
-*--- Industry sector dummies (from IPUMS IND) ---*
-gen indcat = .
-replace indcat = 1  if inrange(ind, 170, 490)     // Agriculture, forestry, fishing, mining
-replace indcat = 2  if inrange(ind, 570, 690)     // Utilities
-replace indcat = 3  if ind == 770                  // Construction
-replace indcat = 4  if inrange(ind, 1070, 3990)   // Manufacturing
-replace indcat = 5  if inrange(ind, 4070, 4590)   // Wholesale trade
-replace indcat = 6  if inrange(ind, 4670, 5791)   // Retail trade
-replace indcat = 7  if inrange(ind, 6070, 6390)   // Transportation & warehousing
-replace indcat = 8  if inrange(ind, 6470, 6781)   // Information
-replace indcat = 9  if inrange(ind, 6870, 6992)   // Finance & insurance
-replace indcat = 10 if inrange(ind, 7071, 7190)   // Real estate & rental/leasing
-replace indcat = 11 if inrange(ind, 7270, 7790)   // Professional/admin/waste mgmt
-replace indcat = 12 if inrange(ind, 7860, 7890)   // Educational services
-replace indcat = 13 if inrange(ind, 7970, 8470)   // Health care & social assistance
-replace indcat = 14 if inrange(ind, 8560, 8590)   // Arts, entertainment, recreation
-replace indcat = 15 if inrange(ind, 8660, 8690)   // Accommodation & food services
-replace indcat = 16 if inrange(ind, 8770, 9290)   // Other services
-replace indcat = 17 if inrange(ind, 9370, 9590)   // Public administration
-replace indcat = 18 if inrange(ind, 9670, 9870)   // Military
-replace indcat = 0  if ind == 0 | ind == 9920      // N/A, unemployed/never worked
 
-label define indcat_lbl 0 "N/A" 1 "Ag/Mining" 2 "Utilities" 3 "Construction" ///
-  4 "Manufacturing" 5 "Wholesale" 6 "Retail" 7 "Transport" 8 "Information" ///
-  9 "Finance" 10 "RealEstate" 11 "Professional" 12 "Education" 13 "Health" ///
-  14 "Arts" 15 "Accommodation" 16 "OtherSvc" 17 "PublicAdmin" 18 "Military"
-label values indcat indcat_lbl
-label var indcat "Broad industry sector (from IPUMS IND)"
-qui tab indcat, gen(indd)   // indd1 = N/A, indd2..indd19 = sectors
+// *--- Industry sector dummies (from IPUMS IND) ---*
+// gen indcat = .
+// replace indcat = 1  if inrange(ind, 170, 490)     // Agriculture, forestry, fishing, mining
+// replace indcat = 2  if inrange(ind, 570, 690)     // Utilities
+// replace indcat = 3  if ind == 770                  // Construction
+// replace indcat = 4  if inrange(ind, 1070, 3990)   // Manufacturing
+// replace indcat = 5  if inrange(ind, 4070, 4590)   // Wholesale trade
+// replace indcat = 6  if inrange(ind, 4670, 5791)   // Retail trade
+// replace indcat = 7  if inrange(ind, 6070, 6390)   // Transportation & warehousing
+// replace indcat = 8  if inrange(ind, 6470, 6781)   // Information
+// replace indcat = 9  if inrange(ind, 6870, 6992)   // Finance & insurance
+// replace indcat = 10 if inrange(ind, 7071, 7190)   // Real estate & rental/leasing
+// replace indcat = 11 if inrange(ind, 7270, 7790)   // Professional/admin/waste mgmt
+// replace indcat = 12 if inrange(ind, 7860, 7890)   // Educational services
+// replace indcat = 13 if inrange(ind, 7970, 8470)   // Health care & social assistance
+// replace indcat = 14 if inrange(ind, 8560, 8590)   // Arts, entertainment, recreation
+// replace indcat = 15 if inrange(ind, 8660, 8690)   // Accommodation & food services
+// replace indcat = 16 if inrange(ind, 8770, 9290)   // Other services
+// replace indcat = 17 if inrange(ind, 9370, 9590)   // Public administration
+// replace indcat = 18 if inrange(ind, 9670, 9870)   // Military
+// replace indcat = 0  if ind == 0 | ind == 9920      // N/A, unemployed/never worked
+//
+// label define indcat_lbl 0 "N/A" 1 "Ag/Mining" 2 "Utilities" 3 "Construction" ///
+//   4 "Manufacturing" 5 "Wholesale" 6 "Retail" 7 "Transport" 8 "Information" ///
+//   9 "Finance" 10 "RealEstate" 11 "Professional" 12 "Education" 13 "Health" ///
+//   14 "Arts" 15 "Accommodation" 16 "OtherSvc" 17 "PublicAdmin" 18 "Military"
+// label values indcat indcat_lbl
+// label var indcat "Broad industry sector (from IPUMS IND)"
+// qui tab indcat, gen(indd)   // indd1 = N/A, indd2..indd19 = sectors
 
 *---Economic Indicators---*
 *Unemployment Rate*
@@ -158,6 +141,7 @@ gen byte employed = (empstat == 1)
 label var employed "Employed (=1)"
 
 * Usual hours/week (UHRSWORK; 0 = not working/NA). Logs & full-time among workers.
+replace uhrswork = . if uhrswork == 00
 gen byte fulltime = (uhrswork >= 35) if uhrswork > 0
 label var fulltime "Usually works full-time (>=35 hrs/wk), workers only"
 gen byte parttime = (uhrswork < 35) if uhrswork > 0
@@ -166,15 +150,15 @@ gen double lhours = ln(uhrswork) if uhrswork > 0
 label var lhours "Log usual hours worked per week (workers only)"
 
 * Weeks worked last year (WKSWORK1, continuous)
-gen wkswork = wkswork1 if wkswork1 > 0
+gen byte wkswork = wkswork1 if wkswork1 > 0
 label var wkswork "Weeks worked last year (workers only)"
 
-*Median Household Income (household-level, N/A cleaned)*
-replace hhincome = . if hhincome == 9999999          // IPUMS N/A code
-gen double _hhinc = hhincome if pernum == 1          // one record per household, not per person
-bysort statefip year: egen double median_income = median(_hhinc)
-drop _hhinc
-label var median_income "Median household income (state-year, households; unweighted)"
+// *Median Household Income (household-level, N/A cleaned)* // chokes the fuck out of code
+// replace hhincome = . if hhincome == 9999999          // IPUMS N/A code
+// gen double _hhinc = hhincome if pernum == 1          // one record per household, not per person
+// bysort statefip year: egen double median_income = median(_hhinc)
+// drop _hhinc
+// label var median_income "Median household income (state-year, households; unweighted)"
 
 *HH Income in Thousands  
 gen double hhincome_k = hhincome / 1000 
@@ -186,17 +170,12 @@ gen double lincome = ln(incwage) if incwage > 0
 label var lincome "Log individual wage income"
 
 *External Income*
-gen double extincome = ftotinc - incwage if !missing(ftotinc)
+gen long extincome = ftotinc - incwage if !missing(ftotinc)
 replace extincome = ftotinc if missing(incwage)
 gen double extincome_k = extincome/1000 if extincome > 0
 label var extincome "Family income net of own earnings"
 label var extincome_k "Family income net of own earnings in thousands"
 *---Additional state-year aggregates---*
-* Single mothers as a share of all mothers
-bysort statefip year: egen double _nmom = total(perwt * mother)
-bysort statefip year: egen double _nsm  = total(perwt * single_mother)
-gen pct_single_mom = 100 * _nsm / _nmom
-drop _nmom _nsm
 
 * Child Related Vars
 bysort statefip year: egen double _kidssum = total(hhwt * nchild * (pernum == 1))
@@ -213,32 +192,15 @@ label var yngch_35 "Youngest child aged 3-5"
 gen double log_pop = ln(pop)
 label var log_pop "Log state population (state-year)"
 
-*---Label % Variables---*
-label var pct_white    "White alone, non-Hispanic (% of state pop)"
-label var pct_black    "Black alone, non-Hispanic (% of state pop)"
-label var pct_aian     "American Indian/Alaska Native, non-Hispanic (% of state pop)"
-label var pct_asian    "Asian/Pacific Islander, non-Hispanic (% of state pop)"
-label var pct_otherr   "Other race, non-Hispanic (% of state pop)"
-label var pct_mixedr   "Two or more races, non-Hispanic (% of state pop)"
-label var pct_hispanic "Hispanic, any race (% of state pop)"
-label var pct_poverty  "Poverty rate (% of state pop)"
-label var pct_female   "Female (% of state pop)"
-label var pct_is_citizen "U.S. citizen (% of state pop)"
-label var pct_in_school  "In school (% of state pop)"
-label var pct_rural      "Not in metro area (% of state pop)"
-label var pct_diploma     "Highest = HS diploma (% of adults 25+)"
-label var pct_associate   "Highest = Associate degree (% of adults 25+)"
-label var pct_bachelor    "Highest = Bachelor's degree (% of adults 25+)"
-label var pct_high_degree "Graduate/professional degree (% of adults 25+)"
-label var pct_married     "Currently married (% of adults 25+)"
-label var pct_under_6	"Under 6 (% of State Pop)"
-label var pct_prime_age "Prime age 25-54 (% of state pop)"
-label var pct_single_mom "Single mothers (% of all mothers)"
 *====================
 * Save Cleaned Data *
 *====================
 
 * Drop aggregation helpers
-drop pop pop_adult adult25 labor_force total_unemployed
+drop pop labor_force total_unemployed
+
+*Optional compress to check my work*
+compress
 
 save "$PROJ/data/clean/cleaned_dataset.dta", replace
+// log close
